@@ -1,23 +1,33 @@
----
-title: "03-cross_validation"
-date: "Compiled at `r format(Sys.time(), '%Y-%m-%d %H:%M:%S', tz = 'UTC')` UTC"
-output: github_document
-params:
-  name: "03-cross_validation" # change if you rename file
----
+03-cross_validation
+================
+Compiled at 2025-05-29 19:48:15 UTC
 
-```{r here, message=FALSE}
+``` r
 here::i_am(paste0(params$name, ".Rmd"), uuid = "6ee83696-c9b5-4212-8ecb-395987467d72")
 ```
 
-The purpose of this document is ...
+The purpose of this document is …
 
-```{r packages}
+``` r
 library(tidyverse)
+```
+
+    ## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+    ## ✔ dplyr     1.1.4     ✔ readr     2.1.5
+    ## ✔ forcats   1.0.0     ✔ stringr   1.5.1
+    ## ✔ ggplot2   3.5.1     ✔ tibble    3.2.1
+    ## ✔ lubridate 1.9.3     ✔ tidyr     1.3.1
+    ## ✔ purrr     1.0.2     
+    ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+    ## ✖ dplyr::filter() masks stats::filter()
+    ## ✖ dplyr::lag()    masks stats::lag()
+    ## ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+
+``` r
 library(hierNet)
 ```
 
-```{r directories}
+``` r
 # create or *empty* the target directory, used to write this file's data: 
 projthis::proj_create_dir_target(params$name, clean = TRUE)
 
@@ -30,52 +40,69 @@ path_source <- projthis::proj_path_source(params$name)
 
 ## Read Data
 
-First we read in the scores that we normalised in the previous step. We can also get more information about the drugs by reading the Map.txt file.
+First we read in the scores that we normalised in the previous step. We
+can also get more information about the drugs by reading the Map.txt
+file.
 
-```{r read.data}
-
+``` r
 normed_scores <- read_tsv(path_source("01-data_exploration", "qnormed_scores_complete.tsv.gz"), show_col_types = FALSE) %>%
   mutate(promoter_rep = paste(promoter, replicate, sep="_"))
 
 
 map_file <- read_tsv(path_source("00-import", "Map.txt"), show_col_types = FALSE)
-
-
 ```
 
-
 We can combine with the information we have in normed_scores
-```{r conc.info}
+
+``` r
 concentration_info <- map_file %>% 
   mutate(chem_conc = paste(Drug, ConcMock, sep=":")) %>% 
   select(chem_conc, Conc)
 ```
 
-
-
-```{r scores.show}
-
+``` r
 normed_scores %>% 
   head() %>% 
   knitr::kable()
+```
 
+| chem_conc           | chem_name         | concentration | genotype_rep | genotype | replicate |      value | promoter | promoter_rep |
+|:--------------------|:------------------|--------------:|:-------------|:---------|----------:|-----------:|:---------|:-------------|
+| 1-Methyluric acid:1 | 1-Methyluric acid |             1 | WT_1         | WT       |         1 |   1.526437 | EVC      | EVC_1        |
+| 1-Methyluric acid:1 | 1-Methyluric acid |             1 | WT_2         | WT       |         2 |  -1.526437 | EVC      | EVC_2        |
+| 1-Methyluric acid:1 | 1-Methyluric acid |             1 | dmarA_1      | dmarA    |         1 | -17.609143 | EVC      | EVC_1        |
+| 1-Methyluric acid:1 | 1-Methyluric acid |             1 | dmarA_2      | dmarA    |         2 |  17.609143 | EVC      | EVC_2        |
+| 1-Methyluric acid:1 | 1-Methyluric acid |             1 | drob_1       | drob     |         1 |  17.609143 | EVC      | EVC_1        |
+| 1-Methyluric acid:1 | 1-Methyluric acid |             1 | drob_2       | drob     |         2 | -17.609143 | EVC      | EVC_2        |
+
+``` r
 map_file %>% 
   head() %>% 
   knitr::kable()
 ```
 
-## Score exploration. 
- 
-Now it becomes important to see how many measurements we have for a given prediction task. Say we want to evaluate the effect that caffeine has on micF. How many measurements do we have?
-At most, we have 32 examples given that for each promoter-compound pair we have 4 concentrations x 4 genotypes x 2 replicates
+|  Nr | Well | Drug              |  Conc | ConcMock | Category             | Class                | Target               | Action |
+|----:|:-----|:------------------|------:|---------:|:---------------------|:---------------------|:---------------------|:-------|
+|   1 | A1   | Water_1           |   0.0 |        1 | Water                | Water                | Water                | NA     |
+|   2 | A2   | Water_1           |   0.0 |        2 | Water                | Water                | Water                | NA     |
+|   3 | A3   | 1-Methyluric acid |  91.1 |        1 | Human metabolite     | Human metabolite     | Human metabolite     | NA     |
+|   4 | A4   | 1-Methyluric acid |  45.5 |        2 | Human metabolite     | Human metabolite     | Human metabolite     | NA     |
+|   5 | A5   | 2,3-DHBA          | 154.1 |        1 | Bacterial metabolite | Bacterial metabolite | Bacterial metabolite | NA     |
+|   6 | A6   | 2,3-DHBA          |  77.1 |        2 | Bacterial metabolite | Bacterial metabolite | Bacterial metabolite | NA     |
 
+## Score exploration.
 
+Now it becomes important to see how many measurements we have for a
+given prediction task. Say we want to evaluate the effect that caffeine
+has on micF. How many measurements do we have? At most, we have 32
+examples given that for each promoter-compound pair we have 4
+concentrations x 4 genotypes x 2 replicates
 
-Now, we know that some pairs, such as pmicF-Caffeine have large changes in gene expression due to different genetic backgrounds. In comparison, something like pmicF-Adrenalin almost does not change.
+Now, we know that some pairs, such as pmicF-Caffeine have large changes
+in gene expression due to different genetic backgrounds. In comparison,
+something like pmicF-Adrenalin almost does not change.
 
-```{r explore.scores.plot}
-
-
+``` r
 explore_qnormed <- function(promoter_name, chemical_name, scores_df = normed_scores, score_column="value"){
   
   # Gather the correct scores
@@ -114,21 +141,22 @@ explore_qnormed <- function(promoter_name, chemical_name, scores_df = normed_sco
   
   
 }
-
 ```
 
-
-```{r caff.micf.ex}
+``` r
 explore_qnormed("pmarRAB", "A22")
 ```
-  
-To account for these expected baseline changes I had proposed a soft-thresholding approach which I colloquially call water-normalisation. I explain that more in *r-02-expression_modelling*. Here I will just do it.
-  
-## Water signal soft-thresholding.  
-  
 
+![](03-cross_validation_files/figure-gfm/caff.micf.ex-1.png)<!-- -->
 
-```{r water.ranges}
+To account for these expected baseline changes I had proposed a
+soft-thresholding approach which I colloquially call
+water-normalisation. I explain that more in *r-02-expression_modelling*.
+Here I will just do it.
+
+## Water signal soft-thresholding.
+
+``` r
 complete.wranges <- normed_scores %>% 
   dplyr::filter(chem_name %in% c("Water_1", "Water_2")) %>% 
   
@@ -141,9 +169,13 @@ complete.wranges <- normed_scores %>%
   
   unite(promoter, genotype_rep, col = "promoter_genotype_rep")
 ```
-  
-Normalise scores  
-```{r wthresh}
+
+    ## `summarise()` has grouped output by 'promoter'. You can override using the
+    ## `.groups` argument.
+
+Normalise scores
+
+``` r
 wthresh.scores <- normed_scores %>% 
   unite(promoter, genotype_rep, col = "promoter_genotype_rep", remove = FALSE) %>% 
   
@@ -156,13 +188,11 @@ wthresh.scores <- normed_scores %>%
                                   TRUE ~ value))
 ```
 
-
-
 ## Design matrix and response
 
-We can start to build $X$. 
-  
-```{r build.X}
+We can start to build $X$.
+
+``` r
 scores_with_design <- wthresh.scores %>% 
   
   # Treatment effects
@@ -177,14 +207,10 @@ scores_with_design <- wthresh.scores %>%
          concentration = 2 ^ (concentration - 1))
 ```
 
+Build a function that returns the design matrix for a given
+promoter-compound pair.
 
-
-Build a function that returns the design matrix for a given promoter-compound pair.  
-
-
-```{r build.X.f}
-
-
+``` r
 build_features <- function(promoter_name, chemical_name, score_column = "value_normed", score_df = scores_with_design, scale_value=TRUE){
   
   # Gather the appropiate values
@@ -209,15 +235,13 @@ build_features <- function(promoter_name, chemical_name, score_column = "value_n
   return(X.df)
 
 }
-
 ```
 
-
-## Cross validation. 
+## Cross validation.
 
 Create a list of all the CPIs we want to model
 
-```{r cpi.list}
+``` r
 cpi_of_interest <- scores_with_design %>% 
   filter(!chem_name %in% c("Water_1", "Water_2"),
          promoter != "EVC") %>% 
@@ -230,9 +254,8 @@ cpi_of_interest <- scores_with_design %>%
 ```
 
 function for CPI modelling with CV
-  
-```{r cross.validation}
 
+``` r
 colchecks <- function(X){
   
   # Make sure that there is more than one unique value in the "value" column.
@@ -540,23 +563,22 @@ cpi.performance.cv <- function(cpi_string, n_splits=10, complete_design_matrix =
   
   
 }
-
 ```
 
 Perform all CPI cross validations
 
-
-```{r parllelization}
-
+``` r
 library(foreach)
-
 ```
 
+    ## 
+    ## Attaching package: 'foreach'
 
+    ## The following objects are masked from 'package:purrr':
+    ## 
+    ##     accumulate, when
 
-  
-```{r cpi.cvs}
-
+``` r
 doParallel::registerDoParallel(50)
 
 
@@ -571,13 +593,17 @@ time_ended <- proc.time()[3]
 time_diff <- round(time_ended - time_started, 2)
 minutes <- floor(time_diff / 60)
 minutes
-
 ```
-  
 
-For some CPIs, no valid test-set could be create. This is mainly due to cases where there is little to no signal in the CPIscores. Therefore, after water normalisation, these scores become 0. 
-No valid model can be evaluated on these cases
-```{r}
+    ## elapsed 
+    ##       0
+
+For some CPIs, no valid test-set could be create. This is mainly due to
+cases where there is little to no signal in the CPIscores. Therefore,
+after water normalisation, these scores become 0. No valid model can be
+evaluated on these cases
+
+``` r
 cpi.retest <- cpi.cv.results %>% 
   group_by(promoter, chem_name) %>% 
   filter(all(is.na(test.rsq))) %>% 
@@ -590,28 +616,34 @@ cpi.retest <- cpi.cv.results %>%
 cpi.retest
 ```
 
-```{r}
+    ##  [1] "pacrAB:Ciprofloxacin"  "pmarRAB:Progesterone"  "pmicF:Gentamicin"     
+    ##  [4] "pmicF:Penicillin G"    "pompF:Moxifloxacin"    "prob:Lithocholic acid"
+    ##  [7] "prob:Metformin"        "prob:Puromycin"        "psoxS:Cefaclor"       
+    ## [10] "psoxS:Chlorhexidine"   "psoxS:Cidofovir"       "psoxS:Clindamycin"    
+    ## [13] "psoxS:Gentamicin"      "ptolC:Amoxicillin"     "ptolC:Sodium urate"   
+    ## [16] "ptolC:Tetracycline"
+
+``` r
 explore_qnormed("pacrAB", "Ciprofloxacin", scores_df =wthresh.scores, score_column = "value_normed")
 ```
 
-
-
+![](03-cross_validation_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
 
 The function introduces placeholder columns. We can ignore those
 
-```{r fix.cv.results}
+``` r
 cpi.cv.results <- cpi.cv.results %>%
   mutate(promoter = substr(promoter, 2, nchar(promoter))) %>% 
   select(-c(concentration.t_rob, concentration.t_mara, concentration.t_soxs, t_rob.t_mara, t_rob.t_soxs, t_mara.t_soxs))
 ```
 
+## Average model performance
 
+We consider the average R2 value for each CPI. Only folds where a valid
+model could be established, and the test set had a non-zero variance are
+considered.
 
-## Average model performance  
- 
-We consider the average R2 value for each CPI. Only folds where a valid model could be established, and the test set had a non-zero variance are considered.
-```{r average.performance}
-
+``` r
 average.cv.performance <- cpi.cv.results %>% 
   filter(!is.na(cvfold)) %>% 
   group_by(promoter, chem_name) %>% 
@@ -620,34 +652,46 @@ average.cv.performance <- cpi.cv.results %>%
             sd.train.r2 = sd(train.rsq, na.rm=TRUE),
             sd.test.r2 = sd(test.rsq, na.rm=TRUE)) %>% 
   ungroup()
-
 ```
 
+    ## `summarise()` has grouped output by 'promoter'. You can override using the
+    ## `.groups` argument.
 
-
-```{r}
+``` r
 average.cv.performance %>% 
   filter(is.na(avg.test.r2))
 ```
 
+    ## # A tibble: 14 × 6
+    ##    promoter chem_name        avg.train.r2 avg.test.r2 sd.train.r2 sd.test.r2
+    ##    <chr>    <chr>                   <dbl>       <dbl>       <dbl>      <dbl>
+    ##  1 acrAB    Ciprofloxacin          0.128          NaN      0.0172         NA
+    ##  2 marRAB   Progesterone           0.472          NaN      0.134          NA
+    ##  3 micF     Gentamicin             0.247          NaN      0.101          NA
+    ##  4 micF     Penicillin G           0.530          NaN      0.192          NA
+    ##  5 ompF     Moxifloxacin           0.0866         NaN      0.0106         NA
+    ##  6 rob      Lithocholic acid       0.117          NaN      0.0276         NA
+    ##  7 rob      Metformin              0.125          NaN      0.0241         NA
+    ##  8 rob      Puromycin              0.0410         NaN      0.0263         NA
+    ##  9 soxS     Cefaclor               0.0410         NaN      0.0263         NA
+    ## 10 soxS     Cidofovir              0.132          NaN      0.0174         NA
+    ## 11 soxS     Clindamycin            0.136          NaN      0.0200         NA
+    ## 12 soxS     Gentamicin             0.0909         NaN      0              NA
+    ## 13 tolC     Sodium urate           0.472          NaN      0.134          NA
+    ## 14 tolC     Tetracycline           0.210          NaN      0.0610         NA
 
-
-
-```{r cpis.of.interest}
+``` r
 cpi.interest <- average.cv.performance %>% 
   unite("cpi", c(promoter, chem_name), sep = ":", remove = FALSE) %>% 
   
   filter(cpi %in% c("soxS:Paraquat", "micF:Caffeine", "micF:Salicylate", "micF:Paraquat", "micF:Tetracycline"))
 ```
 
-
-
-```{r labeled.dotplot}
+``` r
 library(ggrepel)
 ```
 
-
-```{r performance.r2}
+``` r
 model.performance.p <- ggplot(average.cv.performance, aes(x=promoter, y=avg.test.r2)) +
   
   geom_violin() +
@@ -674,18 +718,52 @@ model.performance.p <- ggplot(average.cv.performance, aes(x=promoter, y=avg.test
 
 
 model.performance.p
+```
+
+    ## Warning: Removed 14 rows containing non-finite outside the scale range
+    ## (`stat_ydensity()`).
+
+    ## Warning: Removed 14 rows containing non-finite outside the scale range
+    ## (`stat_boxplot()`).
+
+    ## Warning: Removed 14 rows containing missing values or values outside the scale range
+    ## (`geom_point()`).
+
+![](03-cross_validation_files/figure-gfm/performance.r2-1.png)<!-- -->
+
+``` r
 ggsave(path_target("model_r2_10CV.pdf"),
        plot = model.performance.p,
        dpi = 300,
        height = 12, width = 21, units = "cm")
+```
 
+    ## Warning: Removed 14 rows containing non-finite outside the scale range
+    ## (`stat_ydensity()`).
+
+    ## Warning: Removed 14 rows containing non-finite outside the scale range
+    ## (`stat_boxplot()`).
+
+    ## Warning: Removed 14 rows containing missing values or values outside the scale range
+    ## (`geom_point()`).
+
+``` r
 ggsave(path_target("model_r2_10CV.png"),
        plot = model.performance.p,
        dpi = 300,
        height = 12, width = 21, units = "cm")
 ```
 
-```{r non.scaled.response}
+    ## Warning: Removed 14 rows containing non-finite outside the scale range
+    ## (`stat_ydensity()`).
+
+    ## Warning: Removed 14 rows containing non-finite outside the scale range
+    ## (`stat_boxplot()`).
+
+    ## Warning: Removed 14 rows containing missing values or values outside the scale range
+    ## (`geom_point()`).
+
+``` r
 doParallel::registerDoParallel(50)
 
 
@@ -702,10 +780,10 @@ minutes <- floor(time_diff / 60)
 minutes
 ```
 
+    ## elapsed 
+    ##       0
 
-
-
-```{r non.scaled.performance}
+``` r
 cpi.cv.results.alt <- cpi.cv.results.alt %>%
     mutate(promoter = substr(promoter, 2, nchar(promoter))) %>% 
 select(-c(concentration.t_rob, concentration.t_mara, concentration.t_soxs, t_rob.t_mara, t_rob.t_soxs, t_mara.t_soxs))
@@ -717,7 +795,12 @@ average.cv.performance.alt <- cpi.cv.results.alt %>%
   summarise(avg.train.r2 = mean(train.rsq, na.rm=TRUE),
             avg.test.r2 = mean(test.rsq, na.rm=TRUE)) %>% 
   ungroup()
+```
 
+    ## `summarise()` has grouped output by 'promoter'. You can override using the
+    ## `.groups` argument.
+
+``` r
 cpi.interest <- average.cv.performance.alt %>% 
   unite("cpi", c(promoter, chem_name), sep = ":", remove = FALSE) %>% 
   
@@ -749,22 +832,54 @@ model.performance.alt.p <- ggplot(average.cv.performance, aes(x=promoter, y=avg.
        y=latex2exp::TeX("Average out-of-sample $R^2$"))
 
 model.performance.alt.p
+```
+
+    ## Warning: Removed 14 rows containing non-finite outside the scale range
+    ## (`stat_ydensity()`).
+
+    ## Warning: Removed 14 rows containing non-finite outside the scale range
+    ## (`stat_boxplot()`).
+
+    ## Warning: Removed 14 rows containing missing values or values outside the scale range
+    ## (`geom_point()`).
+
+![](03-cross_validation_files/figure-gfm/non.scaled.performance-1.png)<!-- -->
+
+``` r
 ggsave(path_target("model_r2_10CV_nonScaled.pdf"),
        plot = model.performance.alt.p,
        dpi = 300,
        height = 12, width = 21, units = "cm")
+```
 
+    ## Warning: Removed 14 rows containing non-finite outside the scale range
+    ## (`stat_ydensity()`).
+
+    ## Warning: Removed 14 rows containing non-finite outside the scale range
+    ## (`stat_boxplot()`).
+
+    ## Warning: Removed 14 rows containing missing values or values outside the scale range
+    ## (`geom_point()`).
+
+``` r
 ggsave(path_target("model_r2_10CV_nonScaled.png"),
        plot = model.performance.alt.p,
        dpi = 300,
        height = 12, width = 21, units = "cm")
 ```
 
-  
+    ## Warning: Removed 14 rows containing non-finite outside the scale range
+    ## (`stat_ydensity()`).
+
+    ## Warning: Removed 14 rows containing non-finite outside the scale range
+    ## (`stat_boxplot()`).
+
+    ## Warning: Removed 14 rows containing missing values or values outside the scale range
+    ## (`geom_point()`).
+
 ## Model coefficient distribution
 
-
-```{r rename.coefs}
+``` r
 cpi.cv.results <- cpi.cv.results %>% 
   rename("Concentration" = "concentration",
          "rob" = "t_rob",
@@ -772,22 +887,16 @@ cpi.cv.results <- cpi.cv.results %>%
          "marA" = "t_mara")
 ```
 
-
-```{r coefs.interest}
-
+``` r
 cpi.cv.interest <- cpi.cv.results %>% 
   unite("cpi", c(promoter, chem_name), sep = " - ", remove = FALSE) %>% 
   filter(cpi %in% c("soxS - Paraquat", "micF - Caffeine", "micF - Salicylate", "micF - Paraquat", "micF - Tetracycline")) %>% 
   
   select(cvfold, Concentration, rob, marA, soxS, cpi) %>% 
   pivot_longer(cols=-c(cvfold, cpi), names_to = "coef_name", values_to = "coef_value")
-  
-  
 ```
 
-
-
-```{r coef.plot}
+``` r
 model.coefs.p <- ggplot(cpi.cv.interest, aes(x=coef_name, y=coef_value)) +
   
   geom_hline(yintercept = 0, linetype="longdash", color="black")+
@@ -806,6 +915,11 @@ model.coefs.p <- ggplot(cpi.cv.interest, aes(x=coef_name, y=coef_value)) +
 
 
 model.coefs.p
+```
+
+![](03-cross_validation_files/figure-gfm/coef.plot-1.png)<!-- -->
+
+``` r
 ggsave(path_target("model_betas_10CV.pdf"),
        plot = model.coefs.p,
        dpi = 300,
@@ -822,8 +936,7 @@ ggsave(path_target("model_betas_10CV.svg"),
        height = 12, width = 21, units = "cm")
 ```
 
-
-```{r rename.coefs.alt}
+``` r
 cpi.cv.results.alt <- cpi.cv.results.alt %>% 
   rename("Concentration" = "concentration",
          "rob" = "t_rob",
@@ -831,9 +944,7 @@ cpi.cv.results.alt <- cpi.cv.results.alt %>%
          "marA" = "t_mara")
 ```
 
-
-```{r coefs.interest.alt}
-
+``` r
 cpi.cv.interest.alt <- cpi.cv.results.alt %>% 
   unite("cpi", c(promoter, chem_name), sep = " - ", remove = FALSE) %>% 
   filter(cpi %in% c("soxS - Paraquat", "micF - Caffeine", "micF - Salicylate", "micF - Paraquat", "micF - Tetracycline")) %>% 
@@ -842,8 +953,7 @@ cpi.cv.interest.alt <- cpi.cv.results.alt %>%
   pivot_longer(cols=-c(cvfold, cpi), names_to = "coef_name", values_to = "coef_value")
 ```
 
-
-```{r coef.plot.alt}
+``` r
 model.coefs.alt.p <- ggplot(cpi.cv.interest.alt, aes(x=coef_name, y=coef_value)) +
   
   geom_hline(yintercept = 0, linetype="longdash", color="black")+
@@ -861,7 +971,11 @@ model.coefs.alt.p <- ggplot(cpi.cv.interest.alt, aes(x=coef_name, y=coef_value))
         axis.text.x=element_text(angle=35, hjust=1, vjust = 1))
 
 model.coefs.alt.p
+```
 
+![](03-cross_validation_files/figure-gfm/coef.plot.alt-1.png)<!-- -->
+
+``` r
 ggsave(path_target("model_betas_10CV_nonScaled.pdf"),
        plot = model.coefs.alt.p,
        dpi = 300,
@@ -878,29 +992,84 @@ ggsave(path_target("model_betas_10CV_nonScaled.svg"),
        height = 12, width = 21, units = "cm")
 ```
 
+## Write results.
 
-## Write results. 
-  
-```{r write.files}
-
+``` r
 write_tsv(cpi.cv.results, path_target("results_10CV.tsv.gz"))
 write_tsv(cpi.cv.results.alt, path_target("results_10CV_nonScaled.tsv.gz"))
-
 ```
-
 
 ## Files written
 
-These files have been written to the target directory, ```r paste0("data/", params$name)```:
+These files have been written to the target directory,
+`data/03-cross_validation`:
 
-```{r list-files-target}
+``` r
 projthis::proj_dir_info(path_target())
 ```
 
+    ## # A tibble: 12 × 4
+    ##    path                           type         size modification_time  
+    ##    <fs::path>                     <fct> <fs::bytes> <dttm>             
+    ##  1 model_betas_10CV.pdf           file        15.8K 2025-05-29 19:49:44
+    ##  2 model_betas_10CV.png           file       229.6K 2025-05-29 19:49:44
+    ##  3 model_betas_10CV.svg           file        67.2K 2025-05-29 19:49:45
+    ##  4 model_betas_10CV_nonScaled.pdf file        15.7K 2025-05-29 19:49:46
+    ##  5 model_betas_10CV_nonScaled.png file       219.3K 2025-05-29 19:49:47
+    ##  6 model_betas_10CV_nonScaled.svg file        65.2K 2025-05-29 19:49:47
+    ##  7 model_r2_10CV.pdf              file        71.4K 2025-05-29 19:48:56
+    ##  8 model_r2_10CV.png              file       361.9K 2025-05-29 19:48:56
+    ##  9 model_r2_10CV_nonScaled.pdf    file        71.4K 2025-05-29 19:49:42
+    ## 10 model_r2_10CV_nonScaled.png    file       361.6K 2025-05-29 19:49:42
+    ## 11 results_10CV.tsv.gz            file       307.4K 2025-05-29 19:49:48
+    ## 12 results_10CV_nonScaled.tsv.gz  file       312.2K 2025-05-29 19:49:49
 
-## Session Info. 
-  
-```{r}
+## Session Info.
+
+``` r
 sessionInfo()
 ```
 
+    ## R version 4.2.0 (2022-04-22)
+    ## Platform: x86_64-pc-linux-gnu (64-bit)
+    ## Running under: Ubuntu 22.04.5 LTS
+    ## 
+    ## Matrix products: default
+    ## BLAS:   /opt/bayresq.net/R/R-4.2.0/lib/R/lib/libRblas.so
+    ## LAPACK: /opt/bayresq.net/R/R-4.2.0/lib/R/lib/libRlapack.so
+    ## 
+    ## locale:
+    ##  [1] LC_CTYPE=C.UTF-8       LC_NUMERIC=C           LC_TIME=C.UTF-8       
+    ##  [4] LC_COLLATE=C.UTF-8     LC_MONETARY=C.UTF-8    LC_MESSAGES=C.UTF-8   
+    ##  [7] LC_PAPER=C.UTF-8       LC_NAME=C              LC_ADDRESS=C          
+    ## [10] LC_TELEPHONE=C         LC_MEASUREMENT=C.UTF-8 LC_IDENTIFICATION=C   
+    ## 
+    ## attached base packages:
+    ## [1] stats     graphics  grDevices utils     datasets  methods   base     
+    ## 
+    ## other attached packages:
+    ##  [1] ggrepel_0.9.5   foreach_1.5.2   hierNet_1.9     lubridate_1.9.3
+    ##  [5] forcats_1.0.0   stringr_1.5.1   dplyr_1.1.4     purrr_1.0.2    
+    ##  [9] readr_2.1.5     tidyr_1.3.1     tibble_3.2.1    ggplot2_3.5.1  
+    ## [13] tidyverse_2.0.0
+    ## 
+    ## loaded via a namespace (and not attached):
+    ##  [1] tidyselect_1.2.1    xfun_0.44           latex2exp_0.9.6    
+    ##  [4] colorspace_2.1-1    vctrs_0.6.5         generics_0.1.3     
+    ##  [7] htmltools_0.5.8.1   yaml_2.3.8          utf8_1.2.4         
+    ## [10] rlang_1.1.4         pillar_1.9.0        glue_1.7.0         
+    ## [13] withr_3.0.1         bit64_4.0.5         lifecycle_1.0.4    
+    ## [16] munsell_0.5.1       gtable_0.3.5        ragg_1.2.5         
+    ## [19] codetools_0.2-18    evaluate_0.23       labeling_0.4.3     
+    ## [22] knitr_1.46          tzdb_0.4.0          fastmap_1.2.0      
+    ## [25] doParallel_1.0.17   parallel_4.2.0      fansi_1.0.6        
+    ## [28] highr_0.10          Rcpp_1.0.12         scales_1.3.0       
+    ## [31] vroom_1.6.1         systemfonts_1.2.1   farver_2.1.2       
+    ## [34] fs_1.6.4            bit_4.0.5           textshaping_0.3.6  
+    ## [37] hms_1.1.2           digest_0.6.35       stringi_1.8.4      
+    ## [40] grid_4.2.0          rprojroot_2.0.4     here_1.0.1         
+    ## [43] cli_3.6.3           tools_4.2.0         magrittr_2.0.3     
+    ## [46] projthis_0.0.0.9025 crayon_1.5.2        pkgconfig_2.0.3    
+    ## [49] ellipsis_0.3.2      timechange_0.2.0    svglite_2.1.3      
+    ## [52] rmarkdown_2.27      rstudioapi_0.16.0   iterators_1.0.14   
+    ## [55] R6_2.5.1            compiler_4.2.0
